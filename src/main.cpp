@@ -1,4 +1,3 @@
-#include "utils.hpp"
 #include <Arduino.h>
 #include <Keypad.h>
 #include <LiquidCrystal_I2C.h>
@@ -6,6 +5,7 @@
 #include <SPI.h>
 #include <TMRpcm.h>
 #include <Wire.h>
+#include "utils.hpp"
 
 // LCD setup
 LiquidCrystal_I2C lcd(0x27, 16, 2);
