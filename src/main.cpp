@@ -88,10 +88,11 @@ void setup() {
 
   /* LED */
   pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, HIGH);
 
   /* AUDIO */
   pinMode(AUDIO_PIN, OUTPUT);
-  digitalWrite(AUDIO_PIN, LOW);
+  digitalWrite(AUDIO_PIN, HIGH);
 
   /* MicroSD */
   pinMode(MICRO_SD_PIN, OUTPUT);
@@ -142,6 +143,9 @@ void incorrectPIN() // do this if incorrect PIN entered
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print(" * Try again *");
+
+  digitalWrite(LED_PIN, HIGH);
+
   delay(1000);
   lcd.clear();
   lcd.print("Enter PIN...");
@@ -162,7 +166,9 @@ void read_keypad() {
   if (key) {
     beep();
     if (key == '#') {
-      check_pin();
+      if (check_pin()) {
+        stage = STAGE::ACTIVATED;
+      }
       entered_pin = "";
     } else if (key == '*') {
       entered_pin = "";
@@ -171,13 +177,17 @@ void read_keypad() {
     }
   }
   if (entered_pin.length() == PIN_LENGTH) {
-    check_pin();
+    if (check_pin()) {
+      stage = STAGE::ACTIVATED;
+    }
     entered_pin = "";
   }
 }
 
 void deactivated_stage() {
   // The alarm is not activated
+  digitalWrite(LED_PIN, HIGH);
+
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Enter PIN...");
@@ -192,6 +202,10 @@ void deactivated_stage() {
 
 void activated_stage() {
   // The alarm is activated
+  digitalWrite(LED_PIN, LOW);
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
   lcd.print("Alarm Activated");
   delay(5000);
   stage = STAGE::DEACTIVATED;
