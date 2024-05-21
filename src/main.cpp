@@ -133,6 +133,9 @@ void correctPIN() // do this if correct PIN entered
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("* Correct PIN *");
+
+  digitalWrite(LED_PIN, HIGH);
+
   delay(1000);
   lcd.clear();
   lcd.print("Enter PIN...");
@@ -144,7 +147,7 @@ void incorrectPIN() // do this if incorrect PIN entered
   lcd.setCursor(0, 0);
   lcd.print(" * Try again *");
 
-  digitalWrite(LED_PIN, HIGH);
+  digitalWrite(LED_PIN, LOW);
 
   delay(1000);
   lcd.clear();
@@ -161,27 +164,76 @@ bool check_pin() {
   }
 }
 
-void read_keypad() {
+bool read_keypad() {
   char key = keypad.getKey();
-  if (key) {
+  if (key || entered_pin.length() == PIN_LENGTH) {
     beep();
-    if (key == '#') {
+    if (key == '#' || entered_pin.length() == PIN_LENGTH) {
+      if (entered_pin.length() == 0) {
+        if (stage == STAGE::DEACTIVATED) {
+          stage = STAGE::SETTINGS;
+          return false;
+        }
+      }
+
       if (check_pin()) {
-        stage = STAGE::ACTIVATED;
+        entered_pin = "";
+        return true;
       }
       entered_pin = "";
+
     } else if (key == '*') {
       entered_pin = "";
     } else {
       entered_pin += key;
     }
   }
-  if (entered_pin.length() == PIN_LENGTH) {
-    if (check_pin()) {
-      stage = STAGE::ACTIVATED;
-    }
-    entered_pin = "";
+
+  lcd.setCursor(0, 1);
+  for (unsigned int i = 0; i < entered_pin.length(); i++) {
+    lcd.print("*");
   }
+
+  return false;
+}
+
+bool read_keypad_reset() {
+  // change the PIN
+  char key = keypad.getKey();
+  if (key) {
+    beep();
+    if (key == '#') {
+      if (entered_pin.length() == 0) {
+        stage = STAGE::DEACTIVATED;
+        return false;
+      }
+
+      if (!set_new_pin(entered_pin)) {
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("Err: len != " + String(PIN_LENGTH));
+        delay(2000);
+        entered_pin = "";
+        return false;
+      } else {
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("PIN changed");
+        delay(2000);
+        entered_pin = "";
+        return true;
+      }
+    } else if (key == '*') {
+      entered_pin = "";
+    } else {
+      entered_pin += key;
+    }
+  }
+  lcd.setCursor(0, 1);
+  for (unsigned int i = 0; i < entered_pin.length(); i++) {
+    lcd.print("*");
+  }
+  return false;
 }
 
 void deactivated_stage() {
@@ -190,14 +242,11 @@ void deactivated_stage() {
 
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("Enter PIN...");
+  lcd.print("PIN to activate:");
 
-  lcd.setCursor(0, 1);
-  for (unsigned int i = 0; i < entered_pin.length(); i++) {
-    lcd.print("*");
+  if (read_keypad()) {
+    stage = STAGE::ACTIVATED;
   }
-
-  read_keypad();
 }
 
 void activated_stage() {
@@ -206,13 +255,26 @@ void activated_stage() {
 
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("Alarm Activated");
-  delay(5000);
-  stage = STAGE::DEACTIVATED;
+  lcd.print("PIN to deactivate:");
+  if (read_keypad()) {
+    stage = STAGE::DEACTIVATED;
+  }
 }
 
+void settings_stage() {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Enter new PIN");
+
+  if (read_keypad_reset()) {
+    stage = STAGE::DEACTIVATED;
+  }
+}
 void loop() {
   switch (stage) {
+  case STAGE::SETTINGS:
+    settings_stage();
+    break;
   case STAGE::DEACTIVATED:
     deactivated_stage();
     break;
@@ -224,5 +286,3 @@ void loop() {
   }
   delay(100);
 }
-// https://tronixstuff.com/2013/12/16/arduino-tutorials-chapter-42-numeric-keypads/
-// https://lastminuteengineers.com/pir-sensor-arduino-tutorial/

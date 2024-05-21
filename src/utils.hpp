@@ -4,10 +4,10 @@
 const int PIR_PIN = 2;
 
 // AUDIO
-const int AUDIO_PIN = A0;
+const int AUDIO_PIN = A1;
 
 // LED
-const int LED_PIN = A1;
+const int LED_PIN = A0;
 
 // MicroSD
 const int MICRO_SD_PIN = 10;
