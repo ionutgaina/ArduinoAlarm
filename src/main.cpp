@@ -1,3 +1,4 @@
+#include "utils.hpp"
 #include <Arduino.h>
 #include <Keypad.h>
 #include <LiquidCrystal_I2C.h>
@@ -5,7 +6,6 @@
 #include <SPI.h>
 #include <TMRpcm.h>
 #include <Wire.h>
-#include "utils.hpp"
 
 // LCD setup
 LiquidCrystal_I2C lcd(0x27, 16, 2);
@@ -39,6 +39,7 @@ bool read_keypad_reset();
 void deactivated_stage();
 void activated_stage();
 void settings_stage();
+void alarm_stage();
 
 void setup() {
   // Initialize LCD
@@ -99,6 +100,9 @@ void loop() {
     break;
   case ACTIVATED:
     activated_stage();
+    break;
+  case ALARM:
+    alarm_stage();
     break;
   default:
     break;
@@ -242,6 +246,10 @@ void deactivated_stage() {
   lcd.setCursor(0, 0);
   lcd.print("PIN to activate:");
   if (read_keypad()) {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Activating...");
+    delay(5000);
     stage = ACTIVATED;
   }
 }
@@ -254,6 +262,14 @@ void activated_stage() {
   if (read_keypad()) {
     stage = DEACTIVATED;
   }
+
+  if (digitalRead(PIR_PIN) == HIGH) {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("INTRUDER ALERT");
+    delay(5000);
+    stage = ALARM;
+  }
 }
 
 void settings_stage() {
@@ -261,6 +277,22 @@ void settings_stage() {
   lcd.setCursor(0, 0);
   lcd.print("Enter new PIN");
   if (read_keypad_reset()) {
+    stage = DEACTIVATED;
+  }
+}
+
+void alarm_stage() {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("ALARM ACTIVATED");
+
+  if (digitalRead(LED_PIN) == HIGH) {
+    digitalWrite(LED_PIN, LOW);
+  } else {
+    digitalWrite(LED_PIN, HIGH);
+  }
+
+  if (read_keypad()) {
     stage = DEACTIVATED;
   }
 }
