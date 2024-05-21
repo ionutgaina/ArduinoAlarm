@@ -7,23 +7,6 @@
 #include <Wire.h>
 #include <utils.hpp>
 
-// PIR Sensor
-const int pirPin = 2;
-int pirState = LOW;
-int val = 0;
-
-// AUDIO
-
-const int audioPin = A1;
-
-// LED
-
-const int ledPin = A0;
-
-// MICROSD
-
-const int microSDPin = 10;
-File passwordFile;
 // LCD
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
@@ -44,15 +27,14 @@ Keypad keypad =
     Keypad(makeKeymap(keys), pin_rows, pin_column, ROW_NUM, COLUMN_NUM);
 
 // global variables
-bool isInitialized = false;
-char mykey = ' ';
-String enteredPIN = "";
-String new_pin = "";
-String current_pin = "";
-const String DEFAULT_PIN = "1234";
-const int PIN_LENGTH = 4;
-bool settingnew_pin = false;
 bool error = false;
+
+char mykey = ' ';
+String entered_pin = "";
+String current_pin = "";
+File passwordFile;
+
+STAGE stage = STAGE::DEACTIVATED;
 
 String read_pin() {
   passwordFile = SD.open("pass.txt", FILE_READ);
@@ -85,9 +67,9 @@ bool set_new_pin(String new_pin) {
 }
 
 void beep() {
-  tone(audioPin, 1000);
+  tone(AUDIO_PIN, 1000);
   delay(100);
-  noTone(audioPin);
+  noTone(AUDIO_PIN);
 }
 
 void setup() {
@@ -102,18 +84,18 @@ void setup() {
   Serial.begin(9600);
 
   /* PIR SENSOR INIT */
-  pinMode(pirPin, INPUT);
+  pinMode(PIR_PIN, INPUT);
 
   /* LED */
-  pinMode(ledPin, OUTPUT);
+  pinMode(LED_PIN, OUTPUT);
 
   /* AUDIO */
-  pinMode(audioPin, OUTPUT);
-  digitalWrite(audioPin, LOW);
+  pinMode(AUDIO_PIN, OUTPUT);
+  digitalWrite(AUDIO_PIN, LOW);
 
   /* MicroSD */
-  pinMode(microSDPin, OUTPUT);
-  if (!SD.begin(microSDPin)) {
+  pinMode(MICRO_SD_PIN, OUTPUT);
+  if (!SD.begin(MICRO_SD_PIN)) {
     error = true;
     Serial.println("SD Card Initialization Failed");
   }
@@ -145,6 +127,88 @@ void setup() {
   lcd.clear();
 }
 
-void loop() {}
+void correctPIN() // do this if correct PIN entered
+{
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("* Correct PIN *");
+  delay(1000);
+  lcd.clear();
+  lcd.print("Enter PIN...");
+}
+
+void incorrectPIN() // do this if incorrect PIN entered
+{
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print(" * Try again *");
+  delay(1000);
+  lcd.clear();
+  lcd.print("Enter PIN...");
+}
+
+bool check_pin() {
+  if (entered_pin == current_pin) {
+    correctPIN();
+    return true;
+  } else {
+    incorrectPIN();
+    return false;
+  }
+}
+
+void read_keypad() {
+  char key = keypad.getKey();
+  if (key) {
+    beep();
+    if (key == '#') {
+      check_pin();
+      entered_pin = "";
+    } else if (key == '*') {
+      entered_pin = "";
+    } else {
+      entered_pin += key;
+    }
+  }
+  if (entered_pin.length() == PIN_LENGTH) {
+    check_pin();
+    entered_pin = "";
+  }
+}
+
+void deactivated_stage() {
+  // The alarm is not activated
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Enter PIN...");
+
+  lcd.setCursor(0, 1);
+  for (unsigned int i = 0; i < entered_pin.length(); i++) {
+    lcd.print("*");
+  }
+
+  read_keypad();
+}
+
+void activated_stage() {
+  // The alarm is activated
+  lcd.print("Alarm Activated");
+  delay(5000);
+  stage = STAGE::DEACTIVATED;
+}
+
+void loop() {
+  switch (stage) {
+  case STAGE::DEACTIVATED:
+    deactivated_stage();
+    break;
+  case STAGE::ACTIVATED:
+    activated_stage();
+    break;
+  default:
+    break;
+  }
+  delay(100);
+}
 // https://tronixstuff.com/2013/12/16/arduino-tutorials-chapter-42-numeric-keypads/
 // https://lastminuteengineers.com/pir-sensor-arduino-tutorial/
