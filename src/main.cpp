@@ -15,9 +15,10 @@ const byte ROW_NUM = 4;
 const byte COLUMN_NUM = 3;
 char keys[ROW_NUM][COLUMN_NUM] = {
     {'1', '2', '3'}, {'4', '5', '6'}, {'7', '8', '9'}, {'*', '0', '#'}};
-byte pin_rows[ROW_NUM] = {9, 8, 7, 6};
-byte pin_column[COLUMN_NUM] = {5, 4, 3};
-Keypad keypad = Keypad(makeKeymap(keys), pin_rows, pin_column, ROW_NUM, COLUMN_NUM);
+byte pin_rows[ROW_NUM] = {8, 7, 6, 5};
+byte pin_column[COLUMN_NUM] = {4, 3, 2};
+Keypad keypad =
+    Keypad(makeKeymap(keys), pin_rows, pin_column, ROW_NUM, COLUMN_NUM);
 
 // Global variables
 bool error = false;
@@ -26,10 +27,15 @@ String current_pin = "";
 TMRpcm tmrpcm;
 STAGE stage = DEACTIVATED;
 
+bool is_beeping = false;
+unsigned long beep_start_time = 0;
+unsigned long beep_duration = 100;
+int beep_frequency = 0;
+
 // Function prototypes
 String read_pin();
 bool set_new_pin(const String &new_pin);
-void beep();
+void beep(int khz);
 void correctPIN();
 void incorrectPIN();
 bool check_pin();
@@ -39,6 +45,7 @@ void deactivated_stage();
 void activated_stage();
 void settings_stage();
 void alarm_stage();
+void interupt_handler();
 
 void setup() {
   // Initialize LCD
@@ -57,17 +64,16 @@ void setup() {
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, HIGH);
 
-  // Audio
-  pinMode(AUDIO_PIN, OUTPUT);
-  digitalWrite(AUDIO_PIN, HIGH);
-  tmrpcm.speakerPin = AUDIO_PIN;
-
   // Initialize MicroSD
   pinMode(MICRO_SD_PIN, OUTPUT);
   if (!SD.begin(MICRO_SD_PIN)) {
     error = true;
     Serial.println(F("SD Card Initialization Failed"));
   }
+
+  // audio
+  tmrpcm.speakerPin = AUDIO_PIN;
+  tmrpcm.quality(1);
 
   // Read the current PIN
   current_pin = read_pin();
@@ -111,6 +117,12 @@ void loop() {
   default:
     break;
   }
+
+  if (is_beeping && (millis() - beep_start_time >= beep_duration)) {
+    noTone(AUDIO_PIN);
+    is_beeping = false;
+  }
+
   delay(100);
 }
 
@@ -144,10 +156,11 @@ bool set_new_pin(const String &new_pin) {
   }
 }
 
-void beep() {
-  tone(AUDIO_PIN, 1000);
-  delay(100);
-  noTone(AUDIO_PIN);
+void beep(int khz) {
+  beep_frequency = khz;
+  is_beeping = true;
+  beep_start_time = millis();
+  tone(AUDIO_PIN, beep_frequency);
 }
 
 void correctPIN() {
@@ -183,7 +196,7 @@ bool check_pin() {
 bool read_keypad() {
   char key = keypad.getKey();
   if (key || entered_pin.length() == PIN_LENGTH) {
-    beep();
+    beep(500);
     if (key == '#' || entered_pin.length() == PIN_LENGTH) {
       if (entered_pin.length() == 0 && stage == DEACTIVATED) {
         stage = SETTINGS;
@@ -210,7 +223,7 @@ bool read_keypad() {
 bool read_keypad_reset() {
   char key = keypad.getKey();
   if (key) {
-    beep();
+    beep(500);
     if (key == '#') {
       if (entered_pin.length() == 0) {
         stage = DEACTIVATED;
@@ -253,6 +266,7 @@ void deactivated_stage() {
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print(F("Activating..."));
+    noTone(AUDIO_PIN);
     delay(5000);
     stage = ACTIVATED;
   }
@@ -271,6 +285,7 @@ void activated_stage() {
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print(F("INTRUDER ALERT"));
+    noTone(AUDIO_PIN);
     delay(5000);
     stage = ALARM;
   }
@@ -285,10 +300,20 @@ void settings_stage() {
   }
 }
 
+bool sound = false;
+
 void alarm_stage() {
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print(F("ALARM ACTIVATED"));
+
+  sound = !sound;
+
+  if (sound) {
+    beep(1000);
+  } else {
+    beep(2000);
+  }
 
   if (digitalRead(LED_PIN) == HIGH) {
     digitalWrite(LED_PIN, LOW);
@@ -298,6 +323,5 @@ void alarm_stage() {
 
   if (read_keypad()) {
     stage = DEACTIVATED;
-    tmrpcm.stopPlayback();
   }
 }
