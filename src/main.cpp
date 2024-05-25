@@ -141,7 +141,7 @@ String read_pin() {
 bool set_new_pin(const String &new_pin) {
   if (new_pin.length() == PIN_LENGTH) {
     current_pin = new_pin;
-    File passwordFile = SD.open("pass.txt", FILE_WRITE);
+    File passwordFile = SD.open("pass.txt", FILE_WRITE | O_TRUNC | O_CREAT);
     if (passwordFile) {
       passwordFile.print(current_pin);
       passwordFile.close();
