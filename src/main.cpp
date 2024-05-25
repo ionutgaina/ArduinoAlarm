@@ -158,6 +158,9 @@ bool set_new_pin(const String &new_pin) {
 
 void beep(int khz) {
   beep_frequency = khz;
+  if (is_beeping) {
+    return;
+  }
   is_beeping = true;
   beep_start_time = millis();
   tone(AUDIO_PIN, beep_frequency);
@@ -196,7 +199,7 @@ bool check_pin() {
 bool read_keypad() {
   char key = keypad.getKey();
   if (key || entered_pin.length() == PIN_LENGTH) {
-    beep(500);
+    beep(250);
     if (key == '#' || entered_pin.length() == PIN_LENGTH) {
       if (entered_pin.length() == 0 && stage == DEACTIVATED) {
         stage = SETTINGS;
@@ -223,7 +226,7 @@ bool read_keypad() {
 bool read_keypad_reset() {
   char key = keypad.getKey();
   if (key) {
-    beep(500);
+    beep(250);
     if (key == '#') {
       if (entered_pin.length() == 0) {
         stage = DEACTIVATED;
@@ -265,29 +268,43 @@ void deactivated_stage() {
   if (read_keypad()) {
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print(F("Activating..."));
+    lcd.print(F("You can go!"));
     noTone(AUDIO_PIN);
     delay(5000);
     stage = ACTIVATED;
   }
 }
 
+bool is_intruder = false;
+unsigned long intruderStartTime = 0;
+int time_start_alarm = 0;
+
 void activated_stage() {
   digitalWrite(LED_PIN, LOW);
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print(F("PIN to deactivate:"));
+  if (is_intruder) {
+    lcd.print(F("PIN to deactivate:"));
+  } else {
+    lcd.print(F("Activated"));
+  }
+
   if (read_keypad()) {
     stage = DEACTIVATED;
   }
 
   if (digitalRead(PIR_PIN) == HIGH) {
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print(F("INTRUDER ALERT"));
-    noTone(AUDIO_PIN);
-    delay(5000);
+    if (!is_intruder) {
+      intruderStartTime = millis();
+      is_intruder = true;
+    }
+  }
+
+  if (is_intruder && (millis() - intruderStartTime >= 5000)) {
     stage = ALARM;
+    time_start_alarm = millis();
+    is_intruder = false;
+    tmrpcm.play("music1.wav");
   }
 }
 
@@ -307,12 +324,15 @@ void alarm_stage() {
   lcd.setCursor(0, 0);
   lcd.print(F("ALARM ACTIVATED"));
 
-  sound = !sound;
+  if (millis() - time_start_alarm >= 5000) {
+    tmrpcm.stopPlayback();
+    sound = !sound;
 
-  if (sound) {
-    beep(1000);
-  } else {
-    beep(2000);
+    if (sound) {
+      beep(1000);
+    } else {
+      beep(500);
+    }
   }
 
   if (digitalRead(LED_PIN) == HIGH) {
@@ -323,5 +343,6 @@ void alarm_stage() {
 
   if (read_keypad()) {
     stage = DEACTIVATED;
+    tmrpcm.stopPlayback();
   }
 }
